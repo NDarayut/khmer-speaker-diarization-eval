@@ -1,0 +1,19 @@
+# The app and the system under test (Python 3.12). For a CUDA build of torch, install it from
+# https://pytorch.org first. The reference (DiariZen) has its own environment:
+# scripts/setup_diarizen.sh.
+torch>=2.4
+torchaudio>=2.4
+pyannote.audio==4.0.7
+pyannote.metrics
+numpy
+scipy
+soundfile
+fastapi
+uvicorn
+python-multipart
+silero-vad       # settles speech/silence disputes between the two labellers
+transformers     # music detector (AudioSet AST)
+yt-dlp[default]  # YouTube import; YouTube changes often: if downloads fail, update yt-dlp first
+deno             # JavaScript runtime yt-dlp needs for YouTube
+pytest
+httpx          # tests: FastAPI TestClient

@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Diarization Bench</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 6v4M5 3v10M8 5v6M11 2v12M14 6v4' stroke='%23e75f1b' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="brand" href="#/" title="All recordings">
+      <span class="brand-name">Diarization Bench</span>
+    </a>
+    <nav class="crumbs" id="crumbs"></nav>
+    <nav class="tabs" id="tabs">
+      <a href="#/" data-view="library">Recordings</a>
+      <a href="#/review" data-view="review">Spot check</a>
+      <a href="#/dataset" data-view="dataset">Dataset</a>
+    </nav>
+    <div class="topbar-right">
+      <button class="pill ghost small" id="help-btn" title="How it is scored (?)">?</button>
+    </div>
+  </header>
+
+  <!-- LIBRARY -->
+  <main id="library" class="view library" hidden>
+    <section class="lib-hero">
+      <p class="eyebrow muted2">Khmer diarization labels without listening</p>
+      <h1 class="h1">Label YouTube audio, test your model on it.</h1>
+      <p class="lede muted">Paste a video, playlist or channel link. DiariZen labels who speaks when. Nemotron-3-Diarization checks it independently, and music is detected. Only the parts where the two agree and there is no music are kept as labels. Your system is scored against those labels, and a small spot check tells you how far to trust them.</p>
+    </section>
+
+    <section class="panel import-panel">
+      <div class="panel-head">
+        <p class="eyebrow">Add a recording</p>
+        <div class="seg-control" role="tablist" id="import-tabs">
+          <button role="tab" data-tab="youtube" aria-selected="true">YouTube link</button>
+          <button role="tab" data-tab="path" aria-selected="false">Inbox or path</button>
+          <button role="tab" data-tab="upload" aria-selected="false">Upload</button>
+        </div>
+      </div>
+      <form id="import-form" class="import-form" autocomplete="off">
+        <label class="field grow" data-for="youtube">
+          <span class="eyebrow muted2">YouTube video, playlist or channel</span>
+          <input type="url" name="url" id="import-url" placeholder="https://www.youtube.com/watch?v=…   or   …/playlist?list=…   or   …/@channel" spellcheck="false">
+        </label>
+        <div class="field" id="batch-opts" hidden>
+          <span class="eyebrow muted2">Videos</span>
+          <div class="inline">
+            <input type="number" min="1" max="500" id="batch-limit" class="num" value="20" title="At most this many videos, in the order YouTube lists them">
+            <span class="muted2">of</span>
+            <input type="number" min="0" id="batch-min" class="num" value="3" title="Shortest, in minutes">
+            <span class="muted2">–</span>
+            <input type="number" min="1" id="batch-max" class="num" value="120" title="Longest, in minutes">
+            <span class="muted2">min</span>
+          </div>
+        </div>
+        <label class="field grow" data-for="path" hidden>
+          <span class="eyebrow muted2">Path</span>
+          <input type="text" name="path" id="import-path" list="inbox-files" placeholder="/home/you/recordings/meeting.m4a" spellcheck="false">
+          <datalist id="inbox-files"></datalist>
+        </label>
+        <label class="field grow" data-for="upload" hidden>
+          <span class="eyebrow muted2">Audio or video file</span>
+          <input type="file" name="file" id="import-file" accept="audio/*,video/*,.m4a,.mp3,.wav,.flac,.ogg,.opus,.aac,.mp4,.webm,.mkv">
+        </label>
+        <div class="field">
+          <span class="eyebrow muted2">Speakers (both systems)</span>
+          <div class="inline">
+            <select name="spk_mode" id="spk-mode">
+              <option value="auto">Detect automatically</option>
+              <option value="exact">Exactly</option>
+              <option value="range">Between</option>
+            </select>
+            <input type="number" min="1" max="30" name="n1" id="spk-n1" class="num" hidden>
+            <span id="spk-and" class="muted2" hidden>and</span>
+            <input type="number" min="1" max="30" name="n2" id="spk-n2" class="num" hidden>
+          </div>
+        </div>
+        <button class="pill primary" type="submit" id="import-btn">Run</button>
+      </form>
+      <p class="meta muted2 import-note" id="import-note"></p>
+    </section>
+
+    <section class="panel summary" id="summary" hidden>
+      <div class="panel-head">
+        <p class="eyebrow">All recordings</p>
+        <p class="meta muted2" id="summary-sub"></p>
+      </div>
+      <div class="stats" id="summary-stats"></div>
+    </section>
+
+    <section class="recordings">
+      <table class="idx" id="rec-table">
+        <thead><tr><th>Recording</th><th>Length</th><th>Speakers<br><span class="th-sub">DiariZen / yours</span></th><th>Labels<br><span class="th-sub">speech kept</span></th><th>DER<br><span class="th-sub">vs labels</span></th><th>DER<br><span class="th-sub">vs DiariZen</span></th><th>Status</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="empty muted" id="rec-empty" hidden>No recordings yet. Paste a YouTube link above.</p>
+    </section>
+  </main>
+
+  <!-- SPOT CHECK -->
+  <main id="review" class="view library" hidden>
+    <section class="lib-hero">
+      <p class="eyebrow muted2">Spot check</p>
+      <h1 class="h1">How good are the labels?</h1>
+      <p class="lede muted">Listen to a few random labelled windows instead of everything. Mark a window <b>wrong</b> if a speaker is missing or labelled when silent for more than about half a second, a turn goes to the wrong speaker, or one person is split into two. Otherwise it is <b>correct</b>. Thirty windows give an accuracy estimate within about ±12 points.</p>
+    </section>
+    <section class="panel">
+      <div class="panel-head">
+        <p class="eyebrow">Accuracy</p>
+        <div class="inline">
+          <input type="number" min="1" max="200" id="sample-n" class="num" value="20">
+          <button class="pill small" id="sample-btn">Draw more windows</button>
+        </div>
+      </div>
+      <div class="stats" id="review-stats"></div>
+    </section>
+    <section class="panel review-panel" id="review-item">
+      <div class="panel-head">
+        <p class="eyebrow" id="review-title">Window</p>
+        <p class="meta muted2" id="review-where"></p>
+      </div>
+      <canvas id="review-overview" class="overview" height="30" hidden></canvas>
+      <div class="timeline-wrap"><canvas id="review-timeline" class="timeline"></canvas></div>
+      <div class="review-actions">
+        <button class="pill" id="review-play">▶ Play <kbd>Space</kbd></button>
+        <button class="pill primary" data-verdict="correct">Correct <kbd>Y</kbd></button>
+        <button class="pill danger" data-verdict="wrong">Wrong <kbd>N</kbd></button>
+        <button class="pill ghost" data-verdict="skip">Can't tell <kbd>S</kbd></button>
+        <input type="text" id="review-note" placeholder="Note (optional): what was wrong">
+        <button class="pill small ghost" id="review-prev" title="Previous window (←)">←</button>
+        <button class="pill small ghost" id="review-next" title="Next window (→)">→</button>
+      </div>
+    </section>
+    <p class="empty muted" id="review-empty" hidden></p>
+  </main>
+
+  <!-- DATASET -->
+  <main id="dataset" class="view library" hidden>
+    <section class="lib-hero">
+      <p class="eyebrow muted2">Dataset</p>
+      <h1 class="h1">Keep the labels as ground truth.</h1>
+      <p class="lede muted">Accepted recordings become an evaluation set: audio, RTTM labels, and a UEM with the regions to score, loadable as a pyannote protocol. Push it to a private Hugging Face repo, then score any checkpoint on it. The scores are per recording, per channel and pooled, with intervals that show whether one checkpoint really beats another. The split sizes below apply only with "Evaluation only" off.</p>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><p class="eyebrow">What an export holds</p><p class="meta muted2" id="ds-sub"></p></div>
+      <div class="stats" id="ds-stats"></div>
+      <details class="rejected" id="ds-rejected-box"><summary class="meta" id="ds-rejected-sum"></summary><ul class="meta" id="ds-rejected"></ul></details>
+      <div class="inline ds-tools">
+        <button class="pill small ghost" id="ds-second-missing" title="Recordings imported before Nemotron was set up get their second opinion">Run Nemotron where missing</button>
+        <button class="pill small ghost" id="ds-relabel" title="Rebuild every recording's labels from the existing results">Rebuild all labels</button>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><p class="eyebrow">1 · Build</p></div>
+      <form class="import-form" id="ds-export-form">
+        <label class="field grow"><span class="eyebrow muted2">Name</span><input type="text" id="ds-name" value="khmer-diarization-eval" spellcheck="false"></label>
+        <label class="check meta" title="Every recording in the test split: a pure evaluation set"><input type="checkbox" id="ds-eval-only" checked> Evaluation only</label>
+        <label class="check meta"><input type="checkbox" id="ds-audio" checked> Include audio (FLAC)</label>
+        <button class="pill primary" type="submit">Build dataset</button>
+      </form>
+      <p class="meta muted2" id="ds-export-note"></p>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><p class="eyebrow">2 · Upload to Hugging Face (private)</p><p class="meta muted2" id="ds-hf-user"></p></div>
+      <form class="import-form" id="ds-push-form">
+        <label class="field"><span class="eyebrow muted2">Build</span><select id="ds-push-name"></select></label>
+        <label class="field grow"><span class="eyebrow muted2">Dataset repo</span><input type="text" id="ds-repo" placeholder="your-user/khmer-diarization-eval" spellcheck="false"></label>
+        <button class="pill primary" type="submit" id="ds-push-btn">Push (private)</button>
+      </form>
+      <p class="meta muted2" id="ds-push-note">The repo is created private, and the tool refuses to push to a public one. The audio belongs to its YouTube owners, and the labels come from DiariZen (non-commercial license).</p>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><p class="eyebrow">3 · Evaluate on it</p></div>
+      <pre class="code" id="ds-eval"></pre>
+    </section>
+  </main>
+
+  <!-- COMPARE -->
+  <main id="compare" class="view compare" hidden>
+    <section class="stage">
+      <div class="transport">
+        <button class="icon-btn play" id="play-btn" title="Play / pause (Space)"><svg viewBox="0 0 24 24"><path class="i-play" d="M7 5v14l12-7z"/><path class="i-pause" d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg></button>
+        <span class="clock"><span id="clock-now">0:00.0</span><span class="muted2"> / </span><span class="muted2" id="clock-total">0:00</span></span>
+        <div class="tgroup">
+          <div class="seg-control" id="variant" role="tablist" title="Your system with the speaker count it found, or told the reference's count">
+            <button role="tab" data-v="system" aria-selected="true">Own count</button>
+            <button role="tab" data-v="system_oracle" aria-selected="false">Reference count</button>
+          </div>
+          <button class="chip-btn" id="follow-btn" title="Keep the playhead in view (F)" aria-pressed="true">Follow</button>
+        </div>
+        <div class="legend meta" id="legend"></div>
+        <div class="tgroup right">
+          <span class="meta muted2" id="hover-time"></span>
+          <button class="icon-btn" id="zoom-out" title="Zoom out (-)"><svg viewBox="0 0 24 24"><path d="M5 11h14v2H5z"/></svg></button>
+          <span class="meta muted2 zoom-label" id="zoom-label"></span>
+          <button class="icon-btn" id="zoom-in" title="Zoom in (=)"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg></button>
+        </div>
+      </div>
+      <canvas id="overview" class="overview" height="30"></canvas>
+      <div class="timeline-wrap"><canvas id="timeline" class="timeline"></canvas></div>
+    </section>
+
+    <section class="work">
+      <div class="work-cols">
+        <div class="work-col">
+          <div class="list-head">
+            <p class="eyebrow muted2">Largest disagreements</p>
+            <div class="filters" id="err-filters">
+              <button data-f="all" aria-pressed="true">All</button>
+              <button data-f="confusion">Confusion</button>
+              <button data-f="miss">Missed</button>
+              <button data-f="fa">False alarm</button>
+            </div>
+          </div>
+          <div class="err-list" id="err-list"></div>
+        </div>
+        <div class="work-col">
+          <div class="list-head"><p class="eyebrow muted2">Reference speakers</p></div>
+          <table class="spk-table meta" id="spk-table"></table>
+          <p class="meta muted2 note">Measured on a 10 ms grid without a collar. <b>Found</b> = matched by the system speaker mapped to it. <b>Confused</b> = given to another system speaker. <b>Missed</b> = no system speaker there.</p>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="side-block">
+        <p class="eyebrow muted2">Your score</p>
+        <div class="seg-control" id="target" role="tablist" title="Score against DiariZen on the whole file, or against the pseudo-labels where DiariZen and Nemotron agree">
+          <button role="tab" data-t="labels" aria-selected="true">Vs. labels (agreed)</button>
+          <button role="tab" data-t="diarizen" aria-selected="false">Vs. DiariZen (all)</button>
+        </div>
+        <div class="big-der"><span id="der-big">–</span><span class="meta muted2">DER</span></div>
+        <div class="inline">
+          <div class="seg-control" id="collar" role="tablist" title="Forgiveness collar around each reference boundary">
+            <button role="tab" data-c="0" aria-selected="true">No collar</button>
+            <button role="tab" data-c="0.25" aria-selected="false">±0.25 s</button>
+          </div>
+          <label class="check meta"><input type="checkbox" id="skip-overlap"> Skip overlap</label>
+        </div>
+        <dl class="kv meta" id="score-kv"></dl>
+      </div>
+      <div class="side-block">
+        <p class="eyebrow muted2">Speakers</p>
+        <dl class="kv meta" id="count-kv"></dl>
+      </div>
+      <div class="side-block">
+        <p class="eyebrow muted2">Pseudo-labels</p>
+        <dl class="kv meta" id="labels-kv"></dl>
+        <label class="inline meta">Dataset split
+          <select id="split-select">
+            <option value="">Auto</option>
+            <option value="train">train</option>
+            <option value="development">development</option>
+            <option value="test">test</option>
+          </select>
+        </label>
+      </div>
+      <div class="side-block">
+        <p class="eyebrow muted2">Systems</p>
+        <dl class="kv meta" id="sys-kv"></dl>
+        <div class="inline">
+          <button class="pill small" data-rerun="system" title="Run your system again, e.g. after changing the segmentation checkpoint">Re-run yours</button>
+          <button class="pill small ghost" data-rerun="reference" title="DiariZen again; the labels are rebuilt">Re-run DiariZen</button>
+          <button class="pill small ghost" data-rerun="second" title="Nemotron again; the labels are rebuilt">Re-run Nemotron</button>
+          <button class="pill small ghost" data-rerun="labels" title="Rebuild the labels from the existing results">Rebuild labels</button>
+        </div>
+        <p class="meta muted2" id="job-info"></p>
+      </div>
+      <div class="side-block">
+        <p class="eyebrow muted2">RTTM files</p>
+        <div class="inline" id="rttm-links"></div>
+      </div>
+    </aside>
+  </main>
+
+  <div class="overlay" id="help" hidden>
+    <div class="dialog wide" role="dialog" aria-labelledby="help-title">
+      <div class="dialog-head"><h2 class="h3" id="help-title">How it is scored</h2><button class="icon-btn" data-close>✕</button></div>
+      <div class="keys">
+        <div><h3 class="eyebrow muted2">Metrics</h3>
+          <dl>
+            <dt>DER</dt><dd>(missed + false alarm + confusion) ÷ reference speech, after the best one-to-one matching of your speakers to the reference's. Lower is better.</dd>
+            <dt>Missed</dt><dd>The reference has more speakers talking than yours.</dd>
+            <dt>False alarm</dt><dd>Yours has more speakers talking than the reference.</dd>
+            <dt>Confusion</dt><dd>Speech is detected but given to the wrong speaker.</dd>
+            <dt>JER</dt><dd>Jaccard error rate: per reference speaker, how badly it is matched, averaged. Every speaker counts the same, however long they talk.</dd>
+          </dl></div>
+        <div><h3 class="eyebrow muted2">Conditions</h3>
+          <dl>
+            <dt>Collar</dt><dd>±0.25 s around every reference boundary is not scored (the usual forgiving setting). "No collar" is the strict one.</dd>
+            <dt>Skip overlap</dt><dd>Leave out the time where the reference has several speakers at once.</dd>
+            <dt>Reference count</dt><dd>Your system told how many speakers the reference found. The gap to "Own count" is the cost of guessing the number of speakers.</dd>
+            <dt>All recordings</dt><dd>The components are summed over the recordings, then divided, so long recordings weigh more.</dd>
+          </dl></div>
+        <div><h3 class="eyebrow muted2">Labels</h3>
+          <dl>
+            <dt>Labels</dt><dd>DiariZen's turns, used only in the kept regions.</dd>
+            <dt>Kept</dt><dd>Nemotron has exactly the same speakers active there (after matching its speakers to DiariZen's), at least 0.25 s from any disagreement, not music without speech, in pieces of at least 1 s.</dd>
+            <dt>Accepted</dt><dd>At least half of DiariZen's speech is kept, and there are at most 8 speakers (Nemotron's limit).</dd>
+            <dt>Vs. labels</dt><dd>Your system scored only inside the kept regions: the "ground truth" score.</dd>
+          </dl></div>
+        <div><h3 class="eyebrow muted2">Keys</h3>
+          <dl>
+            <dt><kbd>Space</kbd></dt><dd>Play / pause</dd>
+            <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Seek 1 s (⇧ 5 s)</dd>
+            <dt><kbd>N</kbd> <kbd>⇧ N</kbd></dt><dd>Play the next / previous disagreement</dd>
+            <dt><kbd>-</kbd> <kbd>=</kbd></dt><dd>Zoom out / in (or Ctrl + wheel)</dd>
+            <dt><kbd>F</kbd></dt><dd>Follow the playhead</dd>
+            <dt>Double-click</dt><dd>Play a turn or a disagreement</dd>
+          </dl></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="modal" hidden>
+    <div class="dialog" role="dialog" aria-labelledby="modal-title">
+      <h2 class="h3" id="modal-title"></h2>
+      <p class="body-text muted" id="modal-body"></p>
+      <div class="dialog-actions"><button class="pill ghost" id="modal-cancel">Cancel</button><button class="pill primary" id="modal-ok">OK</button></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

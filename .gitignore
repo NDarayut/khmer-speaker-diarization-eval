@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+data/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+inbox/
+.venv-diarizen/
+third_party/
+.venv-nemo/
+exports/
